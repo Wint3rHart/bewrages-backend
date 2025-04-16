@@ -16,6 +16,7 @@ let { v4: uuidv4 } = require("uuid");
 let {createClient}=require("redis")
 const cookieParser = require('cookie-parser');
 app.use(cookieParser())
+;
 const key = '125xyzabc'
 const redis = createClient({
     username: 'default',
@@ -25,14 +26,6 @@ const redis = createClient({
         port: 15607
     }
 });
-
-
-
-
-
-
-
-
 
 (async () => {
     if (!redis.isOpen) {
@@ -49,16 +42,48 @@ const redis = createClient({
 
 redis.on("error", (err) => {
     console.log("redis error", err);
-})
+});
+
+const bg_fnx=async ()=>{ setInterval(async () => {
+    let session=await mongoose.startSession();
+  await  session.startTransaction();
+    try {
+        
+        let set_info=await redis.sMembers("comment-set");
+        console.log(set_info);
+        set_info.forEach(async (x,i)=>{ let z=  await redis.lRange(`comment-list-${x}`,0,-1) ;  await z.forEach(async (y,j)=>{ let parsed=JSON.parse(y);
+            console.log(x);
+            //  console.log(await bewrages_model.findOne({_id:x},{name:1}))
+            ;await bewrages_model.findByIdAndUpdate( x, { $push: { reviews: parsed } }
+        )
+        
+        })   });
+    await session.endSession();
+    set_info.forEach(async (x)=>{await redis.del(`comment-list-${x}`);await redis.sRem("comment-set",x) });
+    
+
+    } catch (error) {
+         await   session.abortTransaction();
+    }
+
+finally{await session.endSession();}
+// console.log(infos);
+
+
+},11111000);  }
+
+bg_fnx();
 
 
 const generate_Access = (x) => {
-    ; let token = jwt.sign(x, key, { expiresIn: "5m" }); console.log(token);
+    ; let token = jwt.sign(x, key, { expiresIn: "5m" });
+    //  console.log(token);
     ; return token
 }
 
 const generate_Refresh = (x) => {
-    ; let token = jwt.sign(x, key, { expiresIn: "24h" }); console.log(token);
+    ; let token = jwt.sign(x, key, { expiresIn: "24h" }); 
+    // console.log(token);
     ; return token
 }
 
@@ -95,7 +120,7 @@ return res.status(200).send(JSON.parse(get))}else{console.log("no cache found");
 ;return next()}  }catch(err){return res.status(400).send(err.message)}  }, async (req, res) => {
 
     // console.log(req.query);
-
+console.log("from db");
     try {
         let get = req.query.category == 'All' ?
             await bewrages_model.find({}) :
@@ -227,7 +252,8 @@ app.get("/login", (req, res, next) => {
     }
     else {
         try {
-            let verify = jwt.verify(token, key); console.log(verify);
+            let verify = jwt.verify(token, key);
+            //  console.log(verify);
 
             req.user = verify; next();
         } catch (error) {
@@ -248,6 +274,35 @@ app.get("/login", (req, res, next) => {
 
 
 });
+
+
+app.get("/reviews/:id",async(req,res,next)=>{
+    try{
+    let cache_get=await redis.get(`reviews-${req.params.id}`);
+    if(cache_get){
+   return res.status(200).send(JSON.parse(cache_get)) }else{next()} }catch(err){console.log("error in redis cache check at reviews api");return res.status(400).send(err.message)}
+},async(req,res)=>{
+
+    try{
+        let converted=[];
+        let redis_get2=await redis.lRange(`comment-list-${req.params.id}`,0,-1);
+        // console.log(redis_get2,typeof(redis_get2));
+        if(redis_get2.length>0)converted= redis_get2.map(x=>{return JSON.parse(x)})
+      let get=await bewrages_model.findOne({_id:req.params.id},{rating:1,reviews:1,name:1,type:1}).sort({rating:1}).limit(5);
+    console.log(converted);
+// console.log(get);
+const collective={details:{name:get.name,rating:get.rating,type:get.type},reviews:[...get.reviews,...converted]};
+await redis.set(`reviews-${req.params.id}`,JSON.stringify(collective))
+
+
+return res.status(200).send(collective);
+
+}catch(err){
+    console.log("error at reviews db check",err.message)
+;return res.status(400).send(err.message);}
+
+
+})
 
 app.post("/publish", async (req, res) => {
 
@@ -296,12 +351,16 @@ app.get("/refresh", async (req, res, next) => {
 
 
     let token = req?.cookies?.Refresh;
+    if (token) {
+        
+   
+    // console.log(token);
     try {
         let verify = jwt.verify(token, key); 
         // console.log(verify);
 
         let get = await user_model.findOne({ name: verify.name, email: verify.email, role: verify.role }); 
-        console.log(get);
+        // console.log(get);
 
         if (!get) return res.status(400).send({ msg: "Login Again" });
         req.user = { name: get.name, email: get.name, role: get.role, id: get._id };
@@ -312,17 +371,18 @@ app.get("/refresh", async (req, res, next) => {
         console.log(error);
 
         return res.status(400).send({ type: "Refresh", message: error });
-    }
+    } }else{console.log("aaaaa");;return res.status(400).send({msg:"Login  Again"})}
 
 
 }, async (req, res) => {
-    console.log('recieved'); let access = generate_Access(req.user); res.cookie("Access", access, { httpOnly: true, secure: true, sameSite: "strict", maxAge: 300000 })
+    console.log('recieved');
+     let access = generate_Access(req.user); res.cookie("Access", access, { httpOnly: true, secure: true, sameSite: "strict", maxAge: 300000 })
     return res.status(200).send({ msg: "new Access token generated" });
 });
 
 app.get("/user/:id", async (req, res) => {
-    redis.x
-    console.log(req.cookies);
+   
+    // console.log(req.cookies);
     try {
         let get_redis_user = await redis.lRange(req.params.id, 0, -1); console.log(get_redis_user);
 let parsed=get_redis_user.map(x=>JSON.parse(x));
@@ -348,7 +408,22 @@ try{
     ;res.status(400).json(err)}
 
 })
+app.post("/comment/:bewrage_id",async(req,res)=>{
+    let gen_id=uuidv4();
+  
+   
+    // let get=await bewrages_model.findOneAndUpdate({_id:bewrage_id},[{$set:{reviews:{$concatArrays:["$reviews",[req.body]]}}}]);
+    try{
+        let data={rating:req.body.rating,comment:req.body.comment,user:req.body.user,status:req.body.status,cmt_id:gen_id};
+let comment_list=await redis.rPush(`comment-list-${req.params.bewrage_id}`,JSON.stringify(data));
 
+let list_add=await redis.sAdd("comment-set",req.params.bewrage_id);
+const del=await redis.del(`reviews-${req.params.bewrage_id}`);
+console.log(del);
+res.status(200).send({msg:"Success"})
+}catch(err){console.log(err);res.status(400).send(err)}
+
+})
 
 
 app.listen(4800, () => {

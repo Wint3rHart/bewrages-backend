@@ -43,14 +43,15 @@ const redis = createClient({
 redis.on("error", (err) => {
     console.log("redis error", err);
 });
-
+// redis.flushAll().then(x=> console.log("all flushed"))
 const bg_fnx=async ()=>{ setInterval(async () => {
     let session=await mongoose.startSession();
   await  session.startTransaction();
     try {
         
         let set_info=await redis.sMembers("comment-set");
-        console.log(set_info);
+        if (set_info&&set_info.length>0) {
+              console.log(set_info);
         set_info.forEach(async (x,i)=>{ let z=  await redis.lRange(`comment-list-${x}`,0,-1) ;  await z.forEach(async (y,j)=>{ let parsed=JSON.parse(y);
             console.log(x);
             //  console.log(await bewrages_model.findOne({_id:x},{name:1}))
@@ -58,8 +59,11 @@ const bg_fnx=async ()=>{ setInterval(async () => {
         )
         
         })   });
-    await session.endSession();
-    set_info.forEach(async (x)=>{await redis.del(`comment-list-${x}`);await redis.sRem("comment-set",x) });
+        await session.endSession();
+        set_info.forEach(async (x)=>{await redis.del(`comment-list-${x}`);await redis.sRem("comment-set",x) });
+        
+        }
+      
     
 
     } catch (error) {
@@ -70,7 +74,7 @@ finally{await session.endSession();}
 // console.log(infos);
 
 
-},11111000);  }
+},180000);  }
 
 bg_fnx();
 
@@ -123,10 +127,12 @@ return res.status(200).send(JSON.parse(get))}else{console.log("no cache found");
 console.log("from db");
     try {
         let get = req.query.category == 'All' ?
-            await bewrages_model.find({}) :
-            await bewrages_model.find({ type: req.query.category }); console.log(get);
+            await bewrages_model.find({},{reviews:0}) :
+            await bewrages_model.find({ type: req.query.category },{reviews:0}); 
+            // console.log(get);
 
-        await redis.set(`drinks-${req.query.category}`,JSON.stringify(get))
+        await redis.set(`drinks-${req.query.category}`,JSON.stringify(get));
+
         res.status(200).send(get)
     } catch (err) {
         res.status(400).json(err)
@@ -276,23 +282,24 @@ app.get("/login", (req, res, next) => {
 });
 
 
-app.get("/reviews/:id",async(req,res,next)=>{
-    try{
-    let cache_get=await redis.get(`reviews-${req.params.id}`);
-    if(cache_get){
-   return res.status(200).send(JSON.parse(cache_get)) }else{next()} }catch(err){console.log("error in redis cache check at reviews api");return res.status(400).send(err.message)}
-},async(req,res)=>{
+app.get("/reviews/:id",async(req,res)=>{
 
     try{
         let converted=[];
         let redis_get2=await redis.lRange(`comment-list-${req.params.id}`,0,-1);
         // console.log(redis_get2,typeof(redis_get2));
-        if(redis_get2.length>0)converted= redis_get2.map(x=>{return JSON.parse(x)})
-      let get=await bewrages_model.findOne({_id:req.params.id},{rating:1,reviews:1,name:1,type:1}).sort({rating:1}).limit(5);
+        if(redis_get2.length>0)converted= redis_get2.map(x=>{return JSON.parse(x)});
+       console.log(req.query.page);
+        let get = await bewrages_model.aggregate([
+            { $match: { _id: new mongoose.Types.ObjectId(req.params.id) } },
+            { $project: { count:{$ceil:{$divide:[{ $reduce:{input:"$reviews",initialValue:0,in:{$add:["$$value",1]}}},parseInt(req.query.limit)]} },reviews: { $slice: ["$reviews",parseInt(req.query.page-1)*5,parseInt(req.query.limit)] } ,_id:0,name:1,type:1,rating:1} }
+          ]);           
+
+    console.log(get);
     console.log(converted);
-// console.log(get);
-const collective={details:{name:get.name,rating:get.rating,type:get.type},reviews:[...get.reviews,...converted]};
-await redis.set(`reviews-${req.params.id}`,JSON.stringify(collective))
+
+const collective={details:{name:get[0].name,rating:get[0].rating,type:get[0].type,count:get[0].count},reviews:[...get[0].reviews,...converted]};
+await redis.set(`reviews-${req.params.id}`,JSON.stringify(collective));
 
 
 return res.status(200).send(collective);

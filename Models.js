@@ -1,4 +1,4 @@
-let mongoose = require('./Mongo_Connect');
+let {mongoose} = require('./Mongo_Connect');
 let bcrypt = require('bcrypt');
 let {ObjectId}=require("mongodb")
 

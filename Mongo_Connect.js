@@ -8,4 +8,32 @@ mongoose.connect(
 }
 catch(err){console.log(err);
 }
-module.exports = mongoose;
+
+let { createClient } = require("redis")
+
+const redis = createClient({
+    username: 'default',
+    password: 'VYuMKiEz46cPbGwZVN8rn5ieTP2asW7y',
+    socket: {
+        host: 'redis-15607.c1.us-central1-2.gce.redns.redis-cloud.com',
+        port: 15607
+    }
+});
+
+(async () => {
+    if (!redis.isOpen) {
+        try {
+            await redis.connect()
+            console.log("redis connect");
+
+        }
+        catch (err) {
+            console.log(err);
+        }
+    }
+})();
+
+redis.on("error", (err) => {
+    console.log("redis error", err);
+});
+module.exports = {mongoose,redis};

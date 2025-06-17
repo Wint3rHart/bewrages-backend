@@ -27,9 +27,9 @@ const register=async (req, res) => {
      try {
         let get = new user_model({ name: req.body.name, email: req.body.email, password: req.body.password, profilePic: req.file.buffer.toString("base64"), role: req.body.role });
         let saving = await get.save();
-        res.status(200).json('User Registered')
+       return res.status(200).json('User Registered')
     }
-    catch (err) { res.status(400).send({ err: err.message }) }
+    catch (err) {return res.status(400).send({ err: err.message }) }
 };
 
 const sign_check=async (req, res, next) => {
@@ -64,8 +64,8 @@ const sign_check=async (req, res, next) => {
 
     } catch (err) {
         console.log(err);
-
-        ; return res.status(400).send(err)
+next(new Error(err.message));
+        ; return res.status(400).send({msg:err.message})
     }
 };
 
@@ -82,17 +82,18 @@ console.log("lallala");
         ; await user_model.updateOne({ name: req.body.username, role: req.body.role }, [{ $set: { refresh_token: refresh } }]);
         res.cookie("Access", access, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 300000 });
         res.cookie("Refresh", refresh, { httpOnly: true, secure: true, sameSite: "strict", maxAge: 86400000 });
-        session.commitTransaction(); return res.status(200).send({ msg: "User Signed In", dets: req.user });
+        session.commitTransaction();
+             return res.status(200).send({ msg: "User Signed In", dets: req.user });
 
     } catch (err) {
         console.log('error');
         session.abortTransaction();
-        return res.status(400).send(err.name);
+        return res.status(400).send({msg:err.message});
 
-    } finally { session.endSession(); }
+    } finally {await session.endSession(); }
 
 
 
 };
 
-module.exports={register,sign_check,signIn};
+module.exports={register,sign_check,signIn,generate_Access,generate_Refresh};

@@ -3,7 +3,8 @@ let { bewrages_model, user_model } = require('./Models');
 let { v4: uuidv4 } = require("uuid");
 let {redis}=require("./Mongo_Connect")
 const order_cache=async (req, res, next) => {
-    try {
+    try {console.log("Orders cache running");
+    
         let get = await redis.get(`order-${req.params.id}`);
 
         if (get) {
@@ -19,7 +20,7 @@ const order_cache=async (req, res, next) => {
 
 const order_db=async (req, res) => {
     // ; console.log(req.params.id);
-    console.log("order rec");
+   console.log("Orders db running");
 
     ; try {
         let get = await bewrages_model.findOne({ _id: req.params.id });
@@ -35,7 +36,7 @@ const order_db=async (req, res) => {
 }
 const order_publish=async (req, res) => {
 
-    // console.log(req.body);
+console.log("Orders publish running");
 
     // let session=await mongoose.startSession();
     // await session.startTransaction();
@@ -58,7 +59,7 @@ const order_publish=async (req, res) => {
 
 
     } catch (err) {
-        console.log("error", err);
+        console.log("error", err.message);
 
         res.status(400).send({ msg: err.message });
     }
@@ -70,11 +71,11 @@ const order_cancel=async (req, res) => {
         let user_rem = await redis.lSet(req.body.customer_id, req.body.index, "_Deleted_");
         let part2 = await redis.lRem(req.body.customer_id, 1, "_Deleted_");
         await redis.hDel("orders", req.body.order_id);
-        res.status(200).json("Done")
+       return res.status(200).json("Done")
     }
     catch (err) {
-        console.log(err);
-        ; res.status(400).json(err)
+        console.log(err);next(new Error(err.message))
+        ;return res.status(400).json(err)
     }
 
 };

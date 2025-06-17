@@ -6,7 +6,7 @@ mongoose.connect(
   .then(() => console.log("✅ MongoDB Connected Successfully!"))
   .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 }
-catch(err){console.log(err);
+catch(err){next(err.message);console.log(err);
 }
 
 let { createClient } = require("redis")

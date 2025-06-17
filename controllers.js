@@ -107,11 +107,11 @@ const user_stuff=async (req, res) => {
         let get_user = await user_model.findOne({ _id: req.params.id });
 
 
-        res.status(200).send({ user: get_user, orders: parsed });
+      return  res.status(200).send({ user: get_user, orders: parsed });
 
     } catch (err) {
-        console.log(err);
-        ; res.status(400).send(err)
+        console.log(err.message)
+        return res.status(400).send(err)
     }
 };
 

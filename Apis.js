@@ -124,6 +124,17 @@ router.route("/user/:id").get(user_stuff)
 
 router.route("/cancel").delete(order_cancel)
 router.route("/comment/:bewrage_id").post(comment_post);
+router.route("/orders_data").get(async(req,res,next)=>{
+  try{  let get=await redis.hGetAll("orders");
+    if(!get||get?.length<1){return res.status(200).json("No orders present")};
+    let result=[];
+    for(x in get){ console.log(x);
+    ;let parsed=JSON.parse(get[x]);result=[...result,{data:parsed}]; };
+    // console.log(result);
+    
+return res.send(result);
+}catch(err){console.log("aaaaa");
+;next(new Error(err.message))}});
 // app.post("/post", mw.single('file'), async (req, res) => {
 
 //     console.log(req.body.folder, req.body.name, req.file);
@@ -132,7 +143,7 @@ router.route("/comment/:bewrage_id").post(comment_post);
 //     let upload2 = await upload(req.file.path, req.body.folder, req.body.name); let url = upload2
 //     console.log(upload2);
 
-//     let db_upload = await bewrages_model.updateOne({ name: req.body.name }, [{ $set: { image: url } }]); fs.unlinkSync(req.file.path)
+//     let db_upload = await be wrages_model.updateOne({ name: req.body.name }, [{ $set: { image: url } }]); fs.unlinkSync(req.file.path)
 
 
 // })
@@ -140,7 +151,8 @@ router.route("/comment/:bewrage_id").post(comment_post);
 
 
 app.use(router)
-app.use((err,req,res,next)=>{ console.log("error in handler ");res.status(400).json(err.message)
+app.use((err,req,res,next)=>{ console.log("error in handler ");console.log(err);
+;res.status(400).json(err.message)
   })
 
 app.listen(4800, () => {
